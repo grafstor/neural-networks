@@ -19,6 +19,12 @@
             - activate
             - feed
 
+    version 2.0:
+        - Tokenizer
+            - fit_on_text
+            - text_to_sequence
+        - vectorize
+
     exaple:
         >>> nn = Model()
         ... nn.add(Dense(10, 'relu'))
@@ -30,7 +36,7 @@
 
 '''
 
-__version__ = '1.0'
+__version__ = '2.0'
 
 import numpy as np
 import random
@@ -93,10 +99,6 @@ class Model:
 
     def fit(self, train_x, train_y, epochs):
 
-        train_x = np.array(train_x)
-        train_y = np.array(train_y).T
-
-
         for _ in range(epochs):
             layers = []
             changes = []
@@ -125,3 +127,57 @@ class Model:
         for i in range(len(self.layers)):
             layer = self.layers[i].feed(layer)
         return layer
+
+class Tokenizer:
+    def __init__(self, max_words=5000):
+        self.max_words = max_words
+        self.word_index = {'uncnown': 0}
+        self.unallow_list = '.,:<>?!'
+
+    def fit_on_text(self, text):
+        for line in text:
+            for char in self.unallow_list:
+                line = line.replace(char, ' ')
+
+            line = line.split()
+
+            for word in line:
+                if word in self.word_index:
+                    self.word_index[word] += 1
+                else:
+                    if len(self.word_index) > self.max_words:
+                        self.word_index['uncnown'] += 1
+                    else:
+                        self.word_index[word] = 1
+
+        replace_list = [[self.word_index[i],i] for i in self.word_index]
+        replace_list.sort(key=lambda a: a[0])
+        replace_list = replace_list[::-1]
+
+        self.word_index = dict((replace_list[i][1],i) for i in range(len(replace_list)))
+
+    def text_to_sequence(self, text):
+        new_text = []
+
+        for line in text:
+            new_line = []
+
+            for char in self.unallow_list:
+                line = line.replace(char, ' ')
+
+            line = line.split()
+            for word in line:
+                try:
+                    new_line.append(self.word_index[word])
+                except:
+                    new_line.append(self.word_index['uncnown'])
+
+            new_text.append(new_line)
+
+        return new_text
+
+def vectorize(seq, veckor=100):
+    vectors = np.zeros((len(seq), veckor))
+    for i, nums in enumerate(seq):
+        vectors[i, nums] = 1
+    return vectors
