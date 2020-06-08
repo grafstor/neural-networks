@@ -1,4 +1,4 @@
-# test for geras version 1.0
+# test for geras version 2.0
 
 '''
     author: grafstor

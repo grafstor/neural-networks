@@ -5,7 +5,7 @@
     date: 08.06.20
 '''
 
-__version__ = "1.0"
+__version__ = "2.0"
 
 from geras import Input, Dense, Model
 from numpy import array
@@ -33,7 +33,7 @@ def main():
 
 
     test = [[1,0,1]]
-    
+
     result = model.predict(test)
     print(result[0][0])
 

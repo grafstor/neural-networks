@@ -7,7 +7,7 @@
     version 1.0:
         - Activation
             - sigmoid
-            - sigmoid_deviv
+            - dsigmoid
             - ReLU
             - dReLU
         - Model class
@@ -25,6 +25,13 @@
             - text_to_sequence
         - vectorize
 
+    version 2.1:
+        - Activation
+            - tanh
+            - dtanh
+            - softmax
+            - dsoftmax
+
     exaple:
         >>> nn = Model()
         ... nn.add(Dense(10, 'relu'))
@@ -36,7 +43,7 @@
 
 '''
 
-__version__ = '2.0'
+__version__ = '2.1'
 
 import numpy as np
 import random
@@ -46,7 +53,7 @@ class Activation:
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
         
-    def sigmoid_deviv(x):
+    def dsigmoid(x):
         return x*(1 - x)
 
     def ReLU(x):
@@ -55,17 +62,49 @@ class Activation:
     def dReLU(x):
         return 1. * (x > 0)
 
+    def tanh(x):
+        return np.tanh(x)
+
+    def dtanh(x):
+        return 1. - x * x
+
+    def softmax(x):
+        e = np.exp(x - np.max(x))
+        if e.ndim == 1:
+            return e / np.sum(e, axis=0)
+        else:  
+            return e / np.array([np.sum(e, axis=1)]).T
+
+    def dsoftmax(s):
+        jacobian_m = np.diag(s)
+
+        for i in range(len(jacobian_m)):
+            for j in range(len(jacobian_m)):
+                if i == j:
+                    jacobian_m[i][j] = s[i] * (1-s[i])
+                else: 
+                    jacobian_m[i][j] = -s[i]*s[j]
+        return jacobian_m
+
 class Dense:
     def __init__(self, neurons, activation='sigmoid'):
         self.neurons = neurons
 
         if activation == 'sigmoid':
             self.activation = Activation.sigmoid
-            self.dactivation = Activation.sigmoid_deviv
+            self.dactivation = Activation.dsigmoid
 
         elif activation == 'relu':
             self.activation = Activation.ReLU
             self.dactivation = Activation.dReLU
+
+        elif activation == 'tanh':
+            self.activation = Activation.tanh
+            self.dactivation = Activation.dtanh
+
+        elif activation == 'softmax':
+            self.activation = Activation.softmax
+            self.dactivation = Activation.dsoftmax
 
         else:
             raise MyException('Uncnown activation')
@@ -75,6 +114,7 @@ class Dense:
 
     def feed(self, data):
         return self.activation(np.dot(data, self.syn))
+
 
 class Input:
     def __init__(self, input_shape):
@@ -128,6 +168,7 @@ class Model:
             layer = self.layers[i].feed(layer)
         return layer
 
+
 class Tokenizer:
     def __init__(self, max_words=5000):
         self.max_words = max_words
@@ -175,6 +216,7 @@ class Tokenizer:
             new_text.append(new_line)
 
         return new_text
+
 
 def vectorize(seq, veckor=100):
     vectors = np.zeros((len(seq), veckor))
