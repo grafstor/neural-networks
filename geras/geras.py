@@ -29,8 +29,11 @@
         - Activation
             - tanh
             - dtanh
-            - softmax
-            - dsoftmax
+
+    version 2.2:
+        - shuffle data
+        - bias
+        - learning_rate
 
     exaple:
         >>> nn = Model()
@@ -43,7 +46,7 @@
 
 '''
 
-__version__ = '2.1'
+__version__ = '2.2'
 
 import numpy as np
 import random
@@ -68,23 +71,6 @@ class Activation:
     def dtanh(x):
         return 1. - x * x
 
-    def softmax(x):
-        e = np.exp(x - np.max(x))
-        if e.ndim == 1:
-            return e / np.sum(e, axis=0)
-        else:  
-            return e / np.array([np.sum(e, axis=1)]).T
-
-    def dsoftmax(s):
-        jacobian_m = np.diag(s)
-
-        for i in range(len(jacobian_m)):
-            for j in range(len(jacobian_m)):
-                if i == j:
-                    jacobian_m[i][j] = s[i] * (1-s[i])
-                else: 
-                    jacobian_m[i][j] = -s[i]*s[j]
-        return jacobian_m
 
 class Dense:
     def __init__(self, neurons, activation='sigmoid'):
@@ -102,18 +88,15 @@ class Dense:
             self.activation = Activation.tanh
             self.dactivation = Activation.dtanh
 
-        elif activation == 'softmax':
-            self.activation = Activation.softmax
-            self.dactivation = Activation.dsoftmax
-
         else:
             raise MyException('Uncnown activation')
 
     def activate(self, input_num):
         self.syn = 2*np.random.random((input_num, self.neurons)) - 1
+        self.bias = 0
 
     def feed(self, data):
-        return self.activation(np.dot(data, self.syn))
+        return self.activation(np.dot(data, self.syn)) + self.bias
 
 
 class Input:
@@ -137,30 +120,46 @@ class Model:
             last_num = self.layers[i].neurons
 
 
-    def fit(self, train_x, train_y, epochs):
+    def fit(self, train_x, train_y, epochs, shuffle=True, learning_rate=0.1):
+
+        if shuffle:
+            shuffle_data = list(zip(train_x, train_y))
+            random.shuffle(shuffle_data)
+            train_x, train_y = zip(*shuffle_data)
+            del shuffle_data
+
+            train_x = np.array(train_x)
+            train_y = np.array(train_y)
 
         for _ in range(epochs):
-            layers = []
+
+            layers = [train_x]
+
             changes = []
-            layer = train_x
+            changes_bias = []
 
+            # feed forword
             for i in range(len(self.layers)):
-                layers.append(layer)
-                layer = self.layers[i].feed(layer)
+                if i == 0:
+                    layer_output = train_x
+                layer_output = self.layers[i].feed(layer_output)
+                layers.append(layer_output)
 
+            # back propagation
+            for i in reversed(range(1, len(layers))):
+                if i == len(layers)-1:
+                    error = train_y - layers[i]
+                else:
+                    error = np.dot(delta, self.layers[i].syn.T)
+                delta = error*self.layers[i-1].dactivation(layers[i]) 
 
-            error = (train_y - layer)
-            delta = error*self.layers[-1].dactivation(layer)
-            changes.append(np.dot(layers[-1].T, delta))
+                changes.append(learning_rate*np.dot(layers[i-1].T, delta))
+                changes_bias.append(learning_rate*np.mean(delta, axis=0))
 
-
-            for i in range(len(layers)-1, 0, -1):
-                error = np.dot(delta, self.layers[i].syn.T)
-                delta = error*self.layers[i-1].dactivation(layers[i])     
-                changes.append(np.dot(layers[i-1].T, delta))
-
+            # change weights
             for i in range(len(changes)):
                 self.layers[i].syn += changes[len(changes)-i-1]
+                self.layers[i].bias += changes_bias[len(changes)-i-1]
 
     def predict(self, data):
         layer = np.array(data)
