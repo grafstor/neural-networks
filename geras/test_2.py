@@ -53,8 +53,8 @@ def main():
     model = Model()
 
     model.add(Input(maxlen))
-    model.add(Dense(30, 'relu'))
-    model.add(Dense(15, 'relu'))
+    model.add(Dense(32, 'relu'))
+    model.add(Dense(16, 'relu'))
     model.add(Dense(1, 'sigmoid'))
 
     model.compile()
