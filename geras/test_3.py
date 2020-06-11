@@ -20,21 +20,30 @@ def main():
     pixels = photoshop.load()
 
     train_x = [[50, 70],[50,30],[30,50],
-                [40, 50], [60,30], [60,70]]
+                [40, 10],[30, 30],[40, 80],
+                [20,30],[30,40],
 
-    train_y = [[1,1,1,
-                0,0,0]]
+                [40, 50], [60,30], [60,70],
+                [70, 20],[80, 30],[70, 80],
+                [70,50], [50, 50]]
+
+    train_y = [1,1,1,
+                1,1,1,
+                1,1,
+                
+                0,0,0,
+                0,0,0,
+                0,0]
 
     train_x_to_dot = array(train_x)*3
 
     train_x = array(train_x_to_dot)/height
-    train_y = array(train_y).T
 
     model = Model()
 
     model.add(Input(2))
     model.add(Dense(128, 'sigmoid'))
-    model.add(Dense(128, 'sigmoid'))
+    model.add(Dense(100, 'sigmoid'))
     model.add(Dense(1, 'sigmoid'))
 
     model.compile()
@@ -42,32 +51,28 @@ def main():
 
     model.fit(train_x,
               train_y,
-              epochs=10000)
+              epochs=15000)
 
     test = []
     for x in range(width):
         for y in range(height):
             test.append([y,x])
     result = model.predict(array(test)/height)
+    result = array(result)
     result = result.reshape(width, height,1)
 
     for x in range(width):
         for y in range(height):
             dot = result[y,x]
             
-            if dot<0.5:
-                dot = 0
-            else:
-                dot = 1
-
             pixels[y, x] = (int(dot*255),
                            int(dot*255),
                            int(dot*255))
 
     for i,(x,y) in enumerate(train_x_to_dot):
-        pixels[int(y),int(x)] = ((1-train_y[i][0])*255,
-                                (1-train_y[i][0])*255,
-                                (1-train_y[i][0])*255)
+        pixels[int(y),int(x)] = ((1-train_y[i])*255,
+                                (1-train_y[i])*255,
+                                (1-train_y[i])*255)
     photoshop.save('test.png', "PNG")
 
 

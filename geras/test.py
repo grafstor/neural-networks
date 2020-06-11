@@ -8,18 +8,14 @@
 __version__ = "2.0"
 
 from geras import Input, Dense, Model
-from numpy import array
 
 def main():
-    x = array([[1,0,1],
-               [0,0,1],
-               [1,1,0],
-               [0,1,0]])
+    x = [[1,0,1],
+         [0,0,1],
+         [1,1,0],
+         [0,1,0]]
 
-    y = array([[1,
-                0,
-                1,
-                0]]).T
+    y = [1,0,1,0]
 
     model = Model()
 
@@ -29,13 +25,13 @@ def main():
 
     model.compile()
 
-    model.fit(x, y, epochs=1000)
+    model.fit(x, y, epochs=700)
 
 
     test = [[1,0,1]]
 
     result = model.predict(test)
-    print(result[0][0])
+    print(result[0])
 
 if __name__ == '__main__':
     main()
