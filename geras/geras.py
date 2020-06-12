@@ -177,7 +177,8 @@ class Model:
 
     def fit(self, train_X:list, train_Y:list,
             epochs:int, learning_rate:float=0.1,
-            shuffle:bool=True, validation_split:float=0.0):
+            shuffle:bool=True, validation_split:float=0.0,
+            view_stat:bool=True, view_error:bool=True):
 
         (train_X, train_Y), (test_X, test_Y) = self.__prepare_data(train_X, train_Y,
                                                shuffle=shuffle,
@@ -234,25 +235,28 @@ class Model:
                 self.layers[i].bias += changes[reversed_iteration][1]
 
             # test data
-            train_P = layers_results[-1]
+            if view_error:
+                train_P = layers_results[-1]
 
-            if self.is_test: test_P = self.predict(test_X)
-            else: test_P = 0
+                if self.is_test: test_P = self.predict(test_X)
+                else: test_P = 0
 
-            train_E, test_E = self.__test_results(train_Y, train_P,
-                                                  test_Y, test_P)
+                train_E, test_E = self.__test_results(train_Y, train_P,
+                                                      test_Y, test_P)
 
-            history['train'].append(train_E)
-            history['test'].append(test_E)
+                history['train'].append(train_E)
+                history['test'].append(test_E)
 
-            errors = f'Train-Loss: {train_E} ' + \
-                    (int(self.is_test)*f'Test-Loss: {test_E}')
+                errors = f'Train-Loss: {train_E} ' + \
+                        (int(self.is_test)*f'Test-Loss: {test_E}')
 
-            self.__progress(epoch+1, epochs, errors)
+                self.__progress(epoch+1, epochs, errors)
 
-        self.__view_stat(history)
+        if view_stat:
+            self.__view_stat(history)
 
-        print('')
+        if view_error:
+            print('')
 
     def __test_results(self, train_Y, train_P,
                              test_Y, test_P):
