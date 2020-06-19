@@ -42,10 +42,13 @@ Geras
         - log epochs
         - mat plot stat
 
+    version 3.1:
+        - refacktoring 
+
 
 '''
 
-__version__ = '3.0'
+__version__ = '3.1'
 
 import random
 import matplotlib.pyplot as plt
@@ -54,10 +57,11 @@ import numpy as np
 class Activations:
     def __init__(self):
         self.activations_list = {
-            'sigmoid':[self.sigmoid, self.dsigmoid],
-            'relu':[self.ReLU, self.dReLU],
-            'tanh':[self.tanh, self.dtanh],
-        }
+            'sigmoid': [self.sigmoid, self.dsigmoid],
+            'relu': [self.ReLU, self.dReLU],
+            'tanh': [self.tanh, self.dtanh],
+            'softmax': [self.softmax, self.dsoftmax],
+            }
 
     def get(self):
         return self.activations_list
@@ -79,6 +83,13 @@ class Activations:
 
     def dtanh(self, x):
         return 1. - x * x
+
+    def softmax(self, x):
+        exps = np.exp(s - np.max(s, axis=1, keepdims=True))
+        return exps/np.sum(exps, axis=1, keepdims=True)
+
+    def dsoftmax(self, x):
+        return x * (1 - x)
 
 
 class Dense:
@@ -116,10 +127,6 @@ class Model:
         self.layers = []
         self.history = {}
 
-    def __mse(self, y_true, y_pred):
-        error = np.mean(np.power(y_true - y_pred, 2))
-        return error
-
     def __shuffle_data(self, X, Y):
         shuffle_data = list(zip(X, Y))
         random.shuffle(shuffle_data)
@@ -128,6 +135,7 @@ class Model:
 
         X = list(X)
         Y = list(Y)
+
         return (X, Y)
 
     def __split_data(self, X, Y, split_size):
@@ -142,7 +150,7 @@ class Model:
             test_X.append(X.pop(random_index))
             test_Y.append(Y.pop(random_index))
 
-        return ((X, Y),(test_X, test_Y))
+        return ((X, Y), (test_X, test_Y))
 
     def __prepare_data(self, X, Y, shuffle, validation_split):
 
@@ -156,7 +164,11 @@ class Model:
         (train_X, train_Y), (test_X, test_Y) = self.__split_data(X, Y, validation_split)
 
         train_X = np.array(train_X)
-        train_Y = np.array([train_Y]).T
+
+        if type(train_Y[0]) == int:
+            train_Y = np.array([train_Y]).T
+        else:
+            train_Y = np.array(train_Y)
 
         test_X = np.array(test_X)
         test_Y = np.array([test_Y]).T
@@ -175,6 +187,55 @@ class Model:
             self.layers[i].activate(last_num)
             last_num = self.layers[i].neurons
 
+    def __feed_forward(self, X, rs):
+        layers_results = []
+
+        for i in range(len(self.layers)):
+            if i == 0:
+                layer_output = X
+                layers_results.append(X)
+
+            layer_output = self.layers[i].feed(layer_output)
+
+            if self.layers[i].dropout:
+                prop = 1-self.layers[i].dropout
+                mask = rs.binomial(size=layer_output.shape,
+                                   n=1,
+                                   p=prop)
+                layer_output *= mask/prop
+
+            layers_results.append(layer_output)
+
+        return layers_results
+
+    def __back_propagation(self, Y, layers_results, lr):
+        changes = []
+
+        for i in reversed(range(len(self.layers))):
+
+            if i == len(self.layers)-1:
+                error = Y - layers_results[i+1]
+
+            else:
+                error = np.dot(delta, self.layers[i+1].weights.T)
+
+            delta = error*self.layers[i].dactivation(layers_results[i+1])
+
+            weights_change = lr*np.dot(layers_results[i].T, delta)
+            bias_change = lr*np.mean(delta, axis=0)
+
+            changes.append([weights_change, bias_change])
+
+        return changes
+
+    def __change_weights(self, changes):
+        changes = changes[::-1] # reverse
+
+        for i in range(len(changes)):
+            self.layers[i].weights += changes[i][0]
+            self.layers[i].bias += changes[i][1]
+
+
     def fit(self, train_X:list, train_Y:list,
             epochs:int, learning_rate:float=0.1,
             shuffle:bool=True, validation_split:float=0.0,
@@ -184,113 +245,75 @@ class Model:
                                                shuffle=shuffle,
                                                validation_split=validation_split)
 
-        history = {'train': [],
-                   'test': []}
+        self.history = {'train': [],
+                       'test': []}
 
-        rs = np.random.RandomState(123)
+        random_state = np.random.RandomState(123)
 
         for epoch in range(epochs):
 
-            layers_results = [train_X]
+            layers_results = self.__feed_forward(train_X, random_state)
 
-            # feed forword
-            for i in range(len(self.layers)):
-                if i == 0:
-                    layer_output = train_X
+            changes = self.__back_propagation(train_Y, layers_results, learning_rate)
 
-                layer_output = self.layers[i].feed(layer_output)
+            self.__change_weights(changes)
 
-                if self.layers[i].dropout:
-                    prop = 1-self.layers[i].dropout
-                    mask = rs.binomial(size=layer_output.shape,
-                                       n=1,
-                                       p=prop)
-                    layer_output *= mask/prop
-
-                layers_results.append(layer_output)
-
-            changes = []
-
-            # back propagation
-            for i in reversed(range(len(self.layers))):
-
-                if i == len(self.layers)-1:
-                    error = train_Y - layers_results[i+1]
-
-                else:
-                    error = np.dot(delta, self.layers[i+1].weights.T)
-
-                delta = error*self.layers[i].dactivation(layers_results[i+1])
-
-                weights_change = learning_rate*np.dot(layers_results[i].T, delta)
-                bias_change = learning_rate*np.mean(delta, axis=0)
-
-                changes.append([weights_change, bias_change])
-
-            # change weights
-            for i in range(len(changes)):
-                reversed_iteration = len(changes)-i-1
-
-                self.layers[i].weights += changes[reversed_iteration][0]
-                self.layers[i].bias += changes[reversed_iteration][1]
-
-            # test data
             if view_error:
-                train_P = layers_results[-1]
-
-                if self.is_test: test_P = self.predict(test_X)
-                else: test_P = 0
-
-                train_E, test_E = self.__test_results(train_Y, train_P,
-                                                      test_Y, test_P)
-
-                history['train'].append(train_E)
-                history['test'].append(test_E)
-
-                errors = f'Train-Loss: {train_E} ' + \
-                        (int(self.is_test)*f'Test-Loss: {test_E}')
-
-                self.__progress(epoch+1, epochs, errors)
+                self.__test_results(train_Y, layers_results[-1],
+                                    test_X, test_Y,
+                                    epoch, epochs)
 
         if view_stat:
-            self.__view_stat(history)
+            self.__view_stat()
 
         if view_error:
             print('')
 
-    def __test_results(self, train_Y, train_P,
-                             test_Y, test_P):
+    def __test_results(self, train_Y, train_P, test_X, test_Y, epoch, epochs):
 
         train_E = self.__mse(train_Y, train_P)
+        train_E = round(train_E, 4)
 
-        if self.is_test: test_E = self.__mse(test_Y, test_P)
-        else: test_E = 0
+        self.history['train'].append(train_E)
 
-        return (train_E, test_E)
+        errors_line = f'Train-Loss: {train_E}'
 
-    def __progress(self, current, total, errors):
+        if self.is_test:
+            test_P = self.predict(test_X)
 
+            test_E = self.__mse(test_Y, test_P)
+            test_E = round(test_E, 4)
+
+            self.history['test'].append(test_E)
+
+            errors_line += f' Test-Loss: {test_E}'
+
+        self.__progress_bar(epoch+1, epochs, errors_line)
+
+    def __mse(self, y_true, y_pred):
+        error = np.mean(np.power(y_true - y_pred, 2))
+        return error
+
+    def __progress_bar(self, current, total, errors_line):
         percent = float(current) * 100 / total
-        arrow   = '-' * int(percent/100 * 30 - 1) + '>'
+        arrow   = '▆' * int(percent/100 * 30 - 1)
         spaces  = ' ' * (30 - len(arrow))
 
-        print(f'Train: [{arrow}{spaces}] {int(percent)}% {errors}', end='\r')
+        print(f'Train:  {arrow}{spaces} {int(percent)}% {errors_line}', end='\r')
 
     def predict(self, layer:list):
         layer = np.array(layer)
         for i in range(len(self.layers)):
             layer = self.layers[i].feed(layer)
-
-        layer = [i[0] for i in layer]
         return layer
 
-    def __view_stat(self, history):
+    def __view_stat(self):
         if self.is_test:
-            plt.plot(history['test'], label='TEST')
+            plt.plot(self.history['test'], label='test')
 
-        plt.plot(history['train'], label='TRAIN')
-        plt.xlabel('Эпоха обучения')
-        plt.ylabel('Доля верных ответов')
+        plt.plot(self.history['train'], label='train')
+        plt.xlabel('epoch')
+        plt.ylabel('true answers')
         plt.legend()
         plt.show()
 
@@ -346,15 +369,15 @@ class Tokenizer:
             new_text.append(new_line)
 
         maxlen = len(self.word_index)
-        train_x = self.__vectorize(new_text, maxlen)
+        train_x = vectorize(new_text, maxlen)
 
         return train_x
 
 
-    def __vectorize(self, sequence:list, maxlen:int):
-        sequence = np.array(sequence)
-        vectors = np.zeros((len(sequence), maxlen))
+def vectorize(sequence:list, maxlen:int):
+    sequence = np.array(sequence)
+    vectors = np.zeros((len(sequence), maxlen))
 
-        for i, nums in enumerate(sequence):
-            vectors[i, nums] = 1
-        return vectors
+    for i, nums in enumerate(sequence):
+        vectors[i, nums] = 1
+    return vectors

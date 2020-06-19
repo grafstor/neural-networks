@@ -55,7 +55,7 @@ def main():
 
     model.fit(train_x,
               train_y,
-              epochs=500,
+              epochs=100,
               validation_split=0.2)
 
     # test_line = ['лан зватра напиши'] # [[0.00530597]]
