@@ -43,12 +43,15 @@ Geras
         - mat plot stat
 
     version 3.1:
-        - refacktoring 
+        - refacktoring
+
+    version 3.2:
+        - add comments
 
 
 '''
 
-__version__ = '3.1'
+__version__ = '3.2'
 
 import random
 import matplotlib.pyplot as plt
@@ -93,7 +96,15 @@ class Activations:
 
 
 class Dense:
+    '''
+    main sequential layer
+    '''
     def __init__(self, neurons:int, activation:str='sigmoid', dropout=0.0):
+        '''
+        get num of neurons,
+            layer activation,
+            dropout
+        '''
 
         assert 0 <= dropout <= 1
 
@@ -109,23 +120,110 @@ class Dense:
 
 
     def activate(self, input_num:int):
+        '''
+        get shape of previous layer
+        connect this layer with previous
+        '''
         self.weights = 2*np.random.random((input_num, self.neurons)) - 1
         self.bias = 0
 
     def feed(self, data:int):
+        '''
+        get data for layer
+        feed forword this layer
+        '''
         return self.activation(np.dot(data, self.weights)) + self.bias
 
 
 class Input:
+    '''
+    layer used to set the incoming data shape
+    '''
     def __init__(self, input_shape:int):
         self.shape = input_shape
         self.is_test = False
 
 
 class Model:
+    '''
+    sequential model
+    '''
     def __init__(self):
+        '''
+        declares main variables
+        '''
         self.layers = []
         self.history = {}
+
+    def add(self, layer):
+        '''
+        add layer to model
+        '''
+        self.layers.append(layer)
+
+    def compile(self):
+        '''
+        passes the shape from layer to layer
+        '''
+        input_layer = self.layers.pop(0)
+        last_num = input_layer.shape
+
+        for i in range(len(self.layers)):
+            self.layers[i].activate(last_num)
+            last_num = self.layers[i].neurons
+
+    def fit(self, train_X:list, train_Y:list,
+            epochs:int, learning_rate:float=0.1,
+            shuffle:bool=True, validation_split:float=0.0,
+            view_stat:bool=True, view_error:bool=True):
+        '''
+        neural network training loop
+        get data and labels,
+            number of epochs,
+            learning rate - speed of learning,
+            shuffle data,
+            validation split - size of the test sample,
+            view stat,
+            view error
+        '''
+
+        (train_X, train_Y), (test_X, test_Y) = self.__prepare_data(train_X, train_Y,
+                                               shuffle=shuffle,
+                                               validation_split=validation_split)
+
+        self.history = {'train': [],
+                       'test': []}
+
+        random_state = np.random.RandomState(123)
+
+        for epoch in range(epochs):
+
+            layers_results = self.__feed_forward(train_X, random_state)
+
+            changes = self.__back_propagation(train_Y, layers_results, learning_rate)
+
+            self.__change_weights(changes)
+
+            if view_error:
+                self.__test_results(train_Y, layers_results[-1],
+                                    test_X, test_Y,
+                                    epoch, epochs)
+
+        if view_stat:
+            self.__view_stat()
+
+        if view_error:
+            print('')
+
+    def predict(self, layer:list):
+        '''
+        passes data through a neural network
+        return result
+        '''
+        layer = np.array(layer)
+        for i in range(len(self.layers)):
+            layer = self.layers[i].feed(layer)
+        return layer
 
     def __shuffle_data(self, X, Y):
         shuffle_data = list(zip(X, Y))
@@ -175,18 +273,6 @@ class Model:
 
         return (train_X, train_Y), (test_X, test_Y)
 
-    def add(self, layer):
-
-        self.layers.append(layer)
-
-    def compile(self):
-        input_layer = self.layers.pop(0)
-        last_num = input_layer.shape
-
-        for i in range(len(self.layers)):
-            self.layers[i].activate(last_num)
-            last_num = self.layers[i].neurons
-
     def __feed_forward(self, X, rs):
         layers_results = []
 
@@ -235,40 +321,6 @@ class Model:
             self.layers[i].weights += changes[i][0]
             self.layers[i].bias += changes[i][1]
 
-
-    def fit(self, train_X:list, train_Y:list,
-            epochs:int, learning_rate:float=0.1,
-            shuffle:bool=True, validation_split:float=0.0,
-            view_stat:bool=True, view_error:bool=True):
-
-        (train_X, train_Y), (test_X, test_Y) = self.__prepare_data(train_X, train_Y,
-                                               shuffle=shuffle,
-                                               validation_split=validation_split)
-
-        self.history = {'train': [],
-                       'test': []}
-
-        random_state = np.random.RandomState(123)
-
-        for epoch in range(epochs):
-
-            layers_results = self.__feed_forward(train_X, random_state)
-
-            changes = self.__back_propagation(train_Y, layers_results, learning_rate)
-
-            self.__change_weights(changes)
-
-            if view_error:
-                self.__test_results(train_Y, layers_results[-1],
-                                    test_X, test_Y,
-                                    epoch, epochs)
-
-        if view_stat:
-            self.__view_stat()
-
-        if view_error:
-            print('')
-
     def __test_results(self, train_Y, train_P, test_X, test_Y, epoch, epochs):
 
         train_E = self.__mse(train_Y, train_P)
@@ -301,12 +353,6 @@ class Model:
 
         print(f'Train:  {arrow}{spaces} {int(percent)}% {errors_line}', end='\r')
 
-    def predict(self, layer:list):
-        layer = np.array(layer)
-        for i in range(len(self.layers)):
-            layer = self.layers[i].feed(layer)
-        return layer
-
     def __view_stat(self):
         if self.is_test:
             plt.plot(self.history['test'], label='test')
@@ -319,10 +365,41 @@ class Model:
 
 
 class Tokenizer:
+    '''
+    used to prepare string data to neural network
+    '''
     def __init__(self, max_words:int, text:list):
         self.max_words = max_words
         self.unallow_list = '.,:<>?!'
         self.word_index = self.__fit_on_text(text)
+
+    def text_to_sequence(self, text:list):
+        '''
+        get list with str lines
+        replace each word to id
+        return matrix
+        '''
+        new_text = []
+
+        for line in text:
+            new_line = []
+
+            for char in self.unallow_list:
+                line = line.replace(char, ' ')
+
+            line = line.split()
+            for word in line:
+                try:
+                    new_line.append(self.word_index[word])
+                except:
+                    new_line.append(self.word_index['uncnown'])
+
+            new_text.append(new_line)
+
+        maxlen = len(self.word_index)
+        train_x = vectorize(new_text, maxlen)
+
+        return train_x
 
     def __fit_on_text(self, text:list):
         word_index = {'uncnown': 0}
@@ -350,31 +427,10 @@ class Tokenizer:
 
         return word_index
 
-    def text_to_sequence(self, text:list):
-        new_text = []
-
-        for line in text:
-            new_line = []
-
-            for char in self.unallow_list:
-                line = line.replace(char, ' ')
-
-            line = line.split()
-            for word in line:
-                try:
-                    new_line.append(self.word_index[word])
-                except:
-                    new_line.append(self.word_index['uncnown'])
-
-            new_text.append(new_line)
-
-        maxlen = len(self.word_index)
-        train_x = vectorize(new_text, maxlen)
-
-        return train_x
-
-
 def vectorize(sequence:list, maxlen:int):
+    '''
+    convert matrix to one hot encoding
+    '''
     sequence = np.array(sequence)
     vectors = np.zeros((len(sequence), maxlen))
 
