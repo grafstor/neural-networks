@@ -20,12 +20,12 @@ def main():
     model = Model()
 
     model.add(Input(3))
-    model.add(Dense(10, 'relu'))
+    model.add(Dense(3, 'sigmoid'))
     model.add(Dense(1, 'sigmoid'))
 
     model.compile()
 
-    model.fit(x, y, epochs=700)
+    model.fit(x, y, epochs=5000)
 
 
     test = [[1,0,1]]

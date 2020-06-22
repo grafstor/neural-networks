@@ -48,51 +48,138 @@ Geras
     version 3.2:
         - add comments
 
+    version 3.3:
+        - loss foo
+           categorical crossentropy
+           binary crossentropy
+        - add LeakyReLU, Elu, Selu
 
 '''
 
-__version__ = '3.2'
+__version__ = '3.3'
 
 import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-class Activations:
-    def __init__(self):
-        self.activations_list = {
-            'sigmoid': [self.sigmoid, self.dsigmoid],
-            'relu': [self.ReLU, self.dReLU],
-            'tanh': [self.tanh, self.dtanh],
-            'softmax': [self.softmax, self.dsoftmax],
-            }
 
-    def get(self):
-        return self.activations_list
-
-    def sigmoid(self, x):
+class Sigmoid:
+    def __call__(self, x):
         return 1 / (1 + np.exp(-x))
         
-    def dsigmoid(self, x):
+    def derivative(self, x):
         return x*(1 - x)
 
-    def ReLU(self, x):
+
+class ReLU:
+    def __call__(self, x):
         return x * (x > 0)
 
-    def dReLU(self, x):
+    def derivative(self, x):
         return 1. * (x > 0)
 
-    def tanh(self, x):
+
+class Tanh:
+    def __call__(self, x):
         return np.tanh(x)
 
-    def dtanh(self, x):
+    def derivative(self, x):
         return 1. - x * x
 
-    def softmax(self, x):
-        exps = np.exp(s - np.max(s, axis=1, keepdims=True))
+
+class Softmax:
+    def __call__(self, x):
+        exps = np.exp(x - np.max(x, axis=1, keepdims=True))
         return exps/np.sum(exps, axis=1, keepdims=True)
 
-    def dsoftmax(self, x):
-        return x * (1 - x)
+    def derivative(self, x):
+        return x*(1 - x)
+
+
+class LeakyReLU:
+    def __call__(self, x, alpha=0.1):
+        return np.where(x >= 0, x, alpha * x)
+
+    def derivative(self, x, alpha=0.1):
+        return np.where(x >= 0, 1, alpha)
+
+
+class Elu:
+    def __call__(self, x, alpha=0.1):
+        return np.where(x >= 0.0, x, alpha * (np.exp(x) - 1))
+
+    def derivative(self, x, alpha=0.1):
+        return np.where(x >= 0.0, 1, self.ELU(x) + alpha)
+
+
+class Selu:
+    def __init__(self):
+        self.alpha = 1.6732632423543772848170429916717
+        self.scale = 1.0507009873554804934193349852946 
+
+    def __call__(self, x):
+        return self.scale * np.where(x >= 0.0, x, self.alpha*(np.exp(x)-1))
+
+    def derivative(self, x):
+        return self.scale * np.where(x >= 0.0, 1, self.alpha * np.exp(x))
+
+
+class Loss:
+    def __init__(self):
+        self.error = None
+        self.delta = None
+
+    def acc_score(self, y, p):
+        accuracy = np.sum(y == p) / len(y)
+        return accuracy
+
+
+class Categorical_crossentropy(Loss):
+
+    def __call__(self, is_first_iteration, train_y, lr,
+                 previous_layer, present_layer,
+                 previous_layer_result, present_layer_result):
+
+        if is_first_iteration:
+            self.delta = present_layer_result-train_y
+
+        else:
+            self.error = np.dot(self.delta, present_layer.weights.T)
+            self.delta = self.error*previous_layer.activation.derivative(present_layer_result)
+
+        weights_change = lr*np.dot(previous_layer_result.T, self.delta)
+        bias_change = lr*np.sum(self.delta, axis=0, keepdims=True)
+
+        return (-weights_change, -bias_change)
+
+    def acc(self, y_true, y_pred):
+        accuracy = self.acc_score(np.argmax(y_true, axis=1),
+                                  np.argmax(y_pred, axis=1))
+        return accuracy
+
+
+class Binary_crossentropy(Loss):
+
+    def __call__(self, is_first_iteration, train_y, lr,
+                 previous_layer, present_layer,
+                 previous_layer_result, present_layer_result):
+
+        if is_first_iteration:
+            self.error = train_y - present_layer_result
+
+        else:
+            self.error = np.dot(self.delta, present_layer.weights.T)
+
+        self.delta = self.error*previous_layer.activation.derivative(present_layer_result)
+
+        weights_change = lr*np.dot(previous_layer_result.T, self.delta)
+        bias_change = lr*np.mean(self.delta, axis=0)
+
+        return (weights_change, bias_change)
+
+    def acc(self, y_true, y_pred):
+        accuracy = self.acc_score(y_true, y_pred)
+        return accuracy
 
 
 class Dense:
@@ -111,10 +198,18 @@ class Dense:
         self.neurons = neurons
         self.dropout = dropout
 
-        activations = Activations().get()
+        activations = {
+                'sigmoid': Sigmoid(),
+                'relu': ReLU(),
+                'tanh': Tanh(),
+                'softmax': Softmax(),
+                'leakyrelu': LeakyReLU(),
+                'elu': Elu(),
+                'selu': Selu(),
+            }
 
         try:
-            self.activation, self.dactivation = activations[activation]
+            self.activation = activations[activation]
         except:
             raise MyException('Uncnown activation')
 
@@ -124,7 +219,7 @@ class Dense:
         get shape of previous layer
         connect this layer with previous
         '''
-        self.weights = 2*np.random.random((input_num, self.neurons)) - 1
+        self.weights = 2*np.random.random((input_num, self.neurons),) - 1
         self.bias = 0
 
     def feed(self, data:int):
@@ -141,7 +236,6 @@ class Input:
     '''
     def __init__(self, input_shape:int):
         self.shape = input_shape
-        self.is_test = False
 
 
 class Model:
@@ -155,16 +249,28 @@ class Model:
         self.layers = []
         self.history = {}
 
+        self.is_test = False
+
     def add(self, layer):
         '''
         add layer to model
         '''
         self.layers.append(layer)
 
-    def compile(self):
+    def compile(self, loss='binary'):
         '''
         passes the shape from layer to layer
+        choose loss
         '''
+
+        losses = {'binary': Binary_crossentropy(),
+                  'categorical': Categorical_crossentropy()}
+
+        try:
+            self.loss = losses[loss]
+        except:
+            raise MyException('Uncnown loss')
+
         input_layer = self.layers.pop(0)
         last_num = input_layer.shape
 
@@ -188,11 +294,13 @@ class Model:
         '''
 
         (train_X, train_Y), (test_X, test_Y) = self.__prepare_data(train_X, train_Y,
-                                               shuffle=shuffle,
-                                               validation_split=validation_split)
+                                                                   shuffle=shuffle,
+                                                                   validation_split=validation_split)
 
-        self.history = {'train': [],
-                       'test': []}
+        self.history = {
+                'train': [],
+                'test': []
+            }
 
         random_state = np.random.RandomState(123)
 
@@ -269,7 +377,7 @@ class Model:
             train_Y = np.array(train_Y)
 
         test_X = np.array(test_X)
-        test_Y = np.array([test_Y]).T
+        test_Y = np.array(test_Y)
 
         return (train_X, train_Y), (test_X, test_Y)
 
@@ -284,38 +392,47 @@ class Model:
             layer_output = self.layers[i].feed(layer_output)
 
             if self.layers[i].dropout:
-                prop = 1-self.layers[i].dropout
-                mask = rs.binomial(size=layer_output.shape,
-                                   n=1,
-                                   p=prop)
+                prop = 1 - self.layers[i].dropout
+                mask = rs.binomial(size=layer_output.shape, n=1, p=prop)
                 layer_output *= mask/prop
 
             layers_results.append(layer_output)
 
         return layers_results
 
-    def __back_propagation(self, Y, layers_results, lr):
+    def __back_propagation(self, train_y, predictions, learning_rate):
         changes = []
 
-        for i in reversed(range(len(self.layers))):
+        for iteration in reversed(range(len(self.layers))):
 
-            if i == len(self.layers)-1:
-                error = Y - layers_results[i+1]
+            is_first_iteration = iteration == len(self.layers)-1
 
+            previous_layer_result = predictions[iteration]
+            present_layer_result = predictions[iteration+1]
+
+            previous_layer = self.layers[iteration]
+
+            if is_first_iteration:
+                present_layer = None
             else:
-                error = np.dot(delta, self.layers[i+1].weights.T)
+                present_layer = self.layers[iteration+1]
 
-            delta = error*self.layers[i].dactivation(layers_results[i+1])
+            weights_change, bias_change = self.loss(is_first_iteration,
+                                                    train_y,
+                                                    learning_rate,
 
-            weights_change = lr*np.dot(layers_results[i].T, delta)
-            bias_change = lr*np.mean(delta, axis=0)
+                                                    previous_layer,
+                                                    present_layer,
+
+                                                    previous_layer_result,
+                                                    present_layer_result)
 
             changes.append([weights_change, bias_change])
 
         return changes
 
     def __change_weights(self, changes):
-        changes = changes[::-1] # reverse
+        changes = changes[::-1] # reverse after back prop
 
         for i in range(len(changes)):
             self.layers[i].weights += changes[i][0]
@@ -323,22 +440,26 @@ class Model:
 
     def __test_results(self, train_Y, train_P, test_X, test_Y, epoch, epochs):
 
+
+        train_acc = round(self.loss.acc(train_Y, train_P), 4)
+
+        self.history['train'].append(train_acc)
+
         train_E = self.__mse(train_Y, train_P)
         train_E = round(train_E, 4)
 
-        self.history['train'].append(train_E)
-
-        errors_line = f'Train-Loss: {train_E}'
+        errors_line = f'Train  [loss: {train_E} acc: {train_acc}]   '
 
         if self.is_test:
             test_P = self.predict(test_X)
 
+            test_acc = round(self.loss.acc(test_Y, test_P), 4)
+            self.history['test'].append(test_acc)
+
             test_E = self.__mse(test_Y, test_P)
             test_E = round(test_E, 4)
 
-            self.history['test'].append(test_E)
-
-            errors_line += f' Test-Loss: {test_E}'
+            errors_line += f'Test  [loss: {test_E} acc: {test_acc}]   '
 
         self.__progress_bar(epoch+1, epochs, errors_line)
 
@@ -351,7 +472,7 @@ class Model:
         arrow   = '▆' * int(percent/100 * 30 - 1)
         spaces  = ' ' * (30 - len(arrow))
 
-        print(f'Train:  {arrow}{spaces} {int(percent)}% {errors_line}', end='\r')
+        print(f'Train:  {arrow}{spaces} {int(percent)}%   {errors_line}', end='\r')
 
     def __view_stat(self):
         if self.is_test:
@@ -426,6 +547,7 @@ class Tokenizer:
         word_index = dict((replace_list[i][1],i) for i in range(len(replace_list)))
 
         return word_index
+
 
 def vectorize(sequence:list, maxlen:int):
     '''

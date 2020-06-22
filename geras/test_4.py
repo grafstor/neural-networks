@@ -18,8 +18,8 @@ y_list = []
 
 model = 0
 
-height = 190
-width = 190
+height = 100
+width = 100
 
 def callback_1(event):
     global x_list, y_list
@@ -28,19 +28,19 @@ def callback_1(event):
 
     new_model(x_list, y_list)
 
-def callback_2(event):
+def callback_3(event):
     global x_list, y_list
     x_list.append([event.y, event.x])
     y_list.append(0)
 
     new_model(x_list, y_list)
 
-def callback_3(event):
+def callback_2(event):
     train_X = array(x_list)/height
 
     model.fit(train_X,
               y_list,
-              epochs=1000 + len(x_list)*190,
+              epochs=10000 + len(x_list)*190,
               view_stat=False)
     upload_img()
 
@@ -102,8 +102,8 @@ if __name__ == '__main__':
     win.geometry(f'{width}x{height}')
 
     win.bind("<Button-1>", callback_1)
-    win.bind("<Button-2>", callback_3)
-    win.bind("<Button-3>", callback_2)
+    win.bind("<Button-2>", callback_2)
+    win.bind("<Button-3>", callback_3)
 
     label = tkinter.Label(win)
     label.pack()
