@@ -1,9 +1,10 @@
 # test for geras version 3.0
 
-'''
-    author: grafstor
-    date: 12.06.20
-'''
+#----------------------------#
+# Author: grafstor
+# Date: 12.06.20
+#----------------------------#
+
 
 __version__ = "1.0"
 

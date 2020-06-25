@@ -1,9 +1,10 @@
 # test for geras version 3.0
 
-'''
-    author: grafstor
-    date: 12.06.20
-'''
+#----------------------------#
+# Author: grafstor
+# Date: 12.06.20
+#----------------------------#
+
 
 __version__ = "1.0"
 
@@ -24,9 +25,9 @@ def load_data(main_path):
     train_x /= 255
     test /= 255
 
-    train_x = array(train_x[:2000])
-    train_y = array(train_y[:2000])
-    test = array(test[:2000])
+    train_x = array(train_x[:5000])
+    train_y = array(train_y[:5000])
+    test = array(test[:5000])
 
     train_y = vectorize(train_y, 10)
 
@@ -47,7 +48,7 @@ def main():
 
     model.fit(train_x,
               train_y,
-              epochs=100,
+              epochs=130,
               validation_split=0.2,
               learning_rate=0.0001,
               )
