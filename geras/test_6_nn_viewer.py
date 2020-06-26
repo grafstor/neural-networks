@@ -161,20 +161,24 @@ def main():
          [1,1,0],
          [0,1,0]]
 
-    y = [1,0,1,0]
+    y = [1,
+         0,
+         1,
+         0]
 
     model = Model()
 
     model.add(Input(3))
-    model.add(Dense(3, 'sigmoid'))
+    model.add(Dense(4, 'sigmoid'))
+    model.add(Dense(2, 'sigmoid'))
     model.add(Dense(1, 'sigmoid'))
 
     model.compile()
 
     viewer = Viewer()
 
-    for i in range(1000):
-        model.fit(x, y, epochs=2, view_error=False, view_stat=False)
+    for i in range(2000):
+        model.fit(x, y, epochs=1, view_error=True, view_stat=False)
 
         weights = [dense.weights for dense in model.layers]
         viewer.build(weights)
