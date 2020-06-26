@@ -103,7 +103,7 @@ int main()
 	std::vector<float> train_y{0, 1, 1, 0};
 
 
-	for (int epoch = 0; epoch<1500; epoch++)
+	for (int epoch = 0; epoch<10000; epoch++)
 	{
 		// train vectors
 		std::vector<std::vector<float>> dot_product;
@@ -151,7 +151,7 @@ int main()
 	sigmoid(dot_product, output);
 
 	// print test result
-	std::cout << output[0] << "result" <<std::endl;
+	std::cout << "result: " <<  output[0] << std::endl;
 
 	// print weights
 	std::cout << "weights: " <<std::endl;
