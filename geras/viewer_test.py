@@ -1,16 +1,13 @@
-#----------------------------#
-# Author: grafstor
-# Date: 24.06.20
-#----------------------------#
+#-------------------------------#
+#       Author: grafstor        
+#       Date: 24.06.20          
+#-------------------------------#
 
-
-__version__ = "1.0"
-
-from geras import Input, Dense, Model
 import tkinter as tk
 
-class Viewer(tk.Frame):
+from geras import *
 
+class Viewer(tk.Frame):
     def __init__(self):
 
         self.width = 1000
@@ -156,34 +153,39 @@ class Viewer(tk.Frame):
         return "#%02x%02x%02x" % rgb
 
 def main():
-    x = [[1,0,1],
-         [0,0,1],
-         [1,1,0],
-         [0,1,0]]
+    x = np.array([[1,0,1],
+                  [0,0,1],
+                  [1,1,0],
+                  [0,1,0]])
 
-    y = [1,
-         0,
-         1,
-         0]
+    y = np.array([[1,
+                   0,
+                   1,
+                   0]]).T
 
-    model = Model()
+    model = Model(
 
-    model.add(Input(3))
-    model.add(Dense(4, 'sigmoid'))
-    model.add(Dense(2, 'sigmoid'))
-    model.add(Dense(1, 'sigmoid'))
+        Dense(3),
+        Sigmoid(),
 
-    model.compile()
+        Dense(1),
+        Sigmoid(),
+
+    )
 
     viewer = Viewer()
 
     for i in range(2000):
-        model.fit(x, y, epochs=1, view_error=True, view_stat=False)
+        model.fit(x, y, 1)
 
-        weights = [dense.weights for dense in model.layers]
+        weights = []
+        for layer in model.layers:
+            try: weights.append(layer.weights)
+            except: pass
+
         viewer.build(weights)
 
-    test = [[1,0,1]]
+    test = np.array([[1,0,1]])
     result = model.predict(test)
     print(result[0])
 
