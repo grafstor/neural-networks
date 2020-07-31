@@ -16,10 +16,17 @@ class Model:
         self.layers = layers
         self.loss = Crossentropy()
 
+    def __call__(self, optimizer, loss=None):
+        self.loss = loss if loss else self.loss
+        for layer in self.layers:
+            layer(optimizer)
+        return self
+
     def train(self, x, y):
         prediction = self.__feedforward(x)
         gradient = self.loss(y, prediction)
         self.__backpropogation(gradient)
+        return prediction
 
     def predict(self, x):
         return self.__feedforward(x)
@@ -39,7 +46,10 @@ class Layer:
     def __init__(self):
         self.neurons = None
         self.last_data = None
-        self.trainable=True
+        self.trainable = True
+
+    def __call__(self, optimizer):
+        pass
 
     def forward(self, data):
         pass
@@ -49,13 +59,14 @@ class Layer:
 
 
 class Dense(Layer):
-    def __init__(self, neurons, optimizer, trainable=True):
+    def __init__(self, neurons, trainable=True):
         self.neurons = neurons
         self.trainable = trainable
 
         self.weights = []
         self.bias = []
 
+    def __call__(self, optimizer):
         self.weights_optimizer = copy.copy(optimizer)
         self.bias_optimizer = copy.copy(optimizer)
 
@@ -74,8 +85,11 @@ class Dense(Layer):
         next_gradient = np.dot(gradient, self.weights.T)
 
         if self.trainable:
-            self.weights -= self.weights_optimizer.update(np.dot(self.last_data.T, gradient))
-            self.bias -= self.bias_optimizer.update(np.sum(gradient, axis=0, keepdims=True))
+            weights_gradient = np.dot(self.last_data.T, gradient)
+            bias_gradient = np.sum(gradient, axis=0, keepdims=True)
+
+            self.weights -= self.weights_optimizer.update(weights_gradient)
+            self.bias -= self.bias_optimizer.update(bias_gradient)
         
         return next_gradient
 
@@ -87,39 +101,43 @@ class Dropout(Layer):
     def forward(self, data):
         probability = 1.0 - self.dropout
 
-        mask = np.random.binomial(size=data.shape, n=1, p=probability)
-        data *= mask/probability
+        self.mask = np.random.binomial(size=data.shape, n=1, p=probability)
+        data *= self.mask/probability
         return data
 
     def backward(self, gradient):
-        return gradient
+        return gradient * self.mask
 
 
 class Reshape(Layer):
     def __init__(self, shape):
         self.shape = shape
+        self.previous_shape = None
 
     def forward(self, data):
+        self.previous_shape = data.shape
         return data.reshape((-1, *self.shape))
 
     def backward(self, gradient):
-        return gradient
+        return gradient.reshape(self.previous_shape)
 
 
 class Flatten(Layer):
     def __init__(self, size):
         self.size = size
+        self.previous_shape = None
 
     def forward(self, data):
+        self.previous_shape = data.shape
         return data.reshape((-1, np.prod(self.size)))
 
     def backward(self, gradient):
-        return gradient
+        return gradient.reshape(self.previous_shape)
 
 
 class Activation(Layer):
     def forward(self, data):
-        data = self(data)
+        data = self.forward_pass(data)
         self.last_data = data
         return data
 
@@ -131,24 +149,24 @@ class Activation(Layer):
 
 
 class Sigmoid(Activation):
-    def __call__(self, x):
+    def forward_pass(self, x):
         return 1 / (1 + np.exp(-x))
 
     def derivative(self, x):
-        return x*(1 - x)
+        return x * (1 - x)
 
 
 class Softmax(Activation):
-    def __call__(self, x):
+    def forward_pass(self, x):
         e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
 
     def derivative(self, x):
-        return x
+        return x * (1 - x)
 
 
 class ReLU(Activation):
-    def __call__(self, x):
+    def forward_pass(self, x):
         return x * (x > 0)
 
     def derivative(self, x):
@@ -156,7 +174,7 @@ class ReLU(Activation):
 
 
 class TanH(Activation):
-    def __call__(self, x):
+    def forward_pass(self, x):
         return np.tanh(x)
 
     def derivative(self, x):
@@ -167,7 +185,7 @@ class LeakyReLU(Activation):
     def __init__(self, alpha=0.2):
         self.alpha = alpha
 
-    def __call__(self, x):
+    def forward_pass(self, x):
         return np.where(x >= 0, x, self.alpha * x)
 
     def derivative(self, x):
