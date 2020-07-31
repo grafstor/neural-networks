@@ -9,16 +9,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 
-
 class GAN():
     def __init__(self, latent_dim):
         self.img_shape = (28, 28, 1)
         self.latent_dim = latent_dim
-        self.optimizer = Adam(0.001, 0.5)
 
     def build(self, img_shape):
-
         self.img_shape = img_shape
+
         self.generator = self.build_generator()
         self.discriminator = self.build_discriminator()
         self.combined = Model(*self.generator.layers, *self.discriminator.layers)
@@ -27,21 +25,24 @@ class GAN():
 
         generator = Model(
 
-            Dense(256, self.optimizer),
+            Dense(256),
             LeakyReLU(0.2),
+            Dropout(0.5),
 
-            Dense(512, self.optimizer),
+            Dense(512),
             LeakyReLU(0.2),
+            Dropout(0.5),
 
-            Dense(1024, self.optimizer),
+            Dense(1024),
             LeakyReLU(0.2),
+            Dropout(0.5),
 
-            Dense(np.prod(self.img_shape), self.optimizer),
+            Dense(np.prod(self.img_shape)),
             TanH(),
 
             Reshape(self.img_shape),
 
-        )
+        )(Adam(0.0012, 0.5))
 
         return generator
 
@@ -51,28 +52,28 @@ class GAN():
 
             Flatten(self.img_shape),
 
-            Dense(512, self.optimizer),
+            Dense(512),
             LeakyReLU(0.2),
 
             Dropout(0.25),
 
-            Dense(256, self.optimizer),
+            Dense(256),
             LeakyReLU(0.2),
 
             Dropout(0.25),
 
-            Dense(1, self.optimizer),
+            Dense(1),
             Sigmoid(),
 
-        )
+        )(Adam(0.0012, 0.5))
 
         return discriminator
 
-    def train(self, x_train, epochs=100, interval=40):
+    def train(self, x_train, epochs=2000, interval=200):
 
         self.build(x_train.shape[1:])
 
-        batch_size = 64
+        batch_size = 128
 
         zeros = np.zeros((batch_size, 1))
         ones = np.ones((batch_size, 1))
@@ -88,21 +89,30 @@ class GAN():
 
             for layer in self.discriminator.layers:
                 layer.trainable = True
-
-            self.discriminator.train(gen_image, zeros)
-            self.discriminator.train(true_image, ones)
+            
 
 
-            gen_result = self.discriminator.predict(gen_image[:1])
-            true_result = self.discriminator.predict(true_image[:1])
-        
-            print('epoch', epoch, ' discriminator:', gen_result, true_result)
+            gen_result = self.discriminator.train(gen_image, zeros)
+            true_result = self.discriminator.train(true_image, ones)
+
+
+            d_loss_fake = np.mean(self.discriminator.loss.loss(zeros, gen_result))
+            d_loss_real = np.mean(self.discriminator.loss.loss(ones, true_result))
+            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+
 
             for layer in self.discriminator.layers:
                 layer.trainable = False
 
+
+
             noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
-            self.combined.train(noise, ones)
+            comb_result = self.combined.train(noise, ones)
+
+
+            g_loss = np.mean(self.combined.loss.loss(ones, comb_result))
+
+            print('epoch', epoch, ' discriminator:', d_loss, ' generator:', g_loss)
 
             if epoch%interval == 0:
                 image_show(epoch, gen_image[0], x_train.shape[1])
@@ -124,12 +134,11 @@ def image_show(epc, img, size):
     plt.savefig(f'gen_pics/{epc}.png')
 
 def main():
-    batch_size = 128
 
-    x_train = load_data('test train data/mnist')[1:2]
+    x_train = load_data('test train data/mnist')
 
     gan = GAN(100)
-    gan.train(x_train, 121, 20)
+    gan.train(x_train)
 
 if __name__ == '__main__':
     main()
