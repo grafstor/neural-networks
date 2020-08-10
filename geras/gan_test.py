@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 class GAN():
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim=100):
         self.img_shape = (28, 28, 1)
         self.latent_dim = latent_dim
 
@@ -27,22 +27,22 @@ class GAN():
 
             Dense(256),
             LeakyReLU(0.2),
-            Dropout(0.5),
+            BatchNormalization(0.8),
 
             Dense(512),
             LeakyReLU(0.2),
-            Dropout(0.5),
+            BatchNormalization(0.8),
 
             Dense(1024),
             LeakyReLU(0.2),
-            Dropout(0.5),
+            BatchNormalization(0.8),
 
             Dense(np.prod(self.img_shape)),
             TanH(),
 
             Reshape(self.img_shape),
 
-        )(Adam(0.0012, 0.5))
+        )(Adam(0.0003, 0.5))
 
         return generator
 
@@ -50,33 +50,29 @@ class GAN():
 
         discriminator = Model(
 
-            Flatten(self.img_shape),
+            Flatten(),
 
             Dense(512),
             LeakyReLU(0.2),
 
-            Dropout(0.25),
-
             Dense(256),
             LeakyReLU(0.2),
-
-            Dropout(0.25),
 
             Dense(1),
             Sigmoid(),
 
-        )(Adam(0.0012, 0.5))
+        )(Adam(0.002, 0.5))
 
         return discriminator
 
-    def train(self, x_train, epochs=2000, interval=200):
+    def train(self, x_train, epochs=10000, interval=200):
 
         self.build(x_train.shape[1:])
 
-        batch_size = 128
+        batch_size = 256
 
         zeros = np.zeros((batch_size, 1))
-        ones = np.ones((batch_size, 1))
+        ones = np.ones((batch_size, 1)) - 0.1
 
 
         for epoch in range(epochs):
@@ -90,8 +86,6 @@ class GAN():
             for layer in self.discriminator.layers:
                 layer.trainable = True
             
-
-
             gen_result = self.discriminator.train(gen_image, zeros)
             true_result = self.discriminator.train(true_image, ones)
 
@@ -105,7 +99,6 @@ class GAN():
                 layer.trainable = False
 
 
-
             noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
             comb_result = self.combined.train(noise, ones)
 
@@ -115,7 +108,27 @@ class GAN():
             print('epoch', epoch, ' discriminator:', d_loss, ' generator:', g_loss)
 
             if epoch%interval == 0:
-                image_show(epoch, gen_image[0], x_train.shape[1])
+                self.show_samples(epoch, x_train.shape[1])
+
+    def show_samples(self, epoch, size):
+        r, c = 3, 3
+
+        noise = np.random.normal(0, 1, (r * c, self.latent_dim))
+        gen_imgs = self.generator.predict(noise)
+        gen_imgs = 0.5 * gen_imgs + 0.5
+        gen_imgs = gen_imgs.reshape((-1, size, size, 1))
+
+        fig, axs = plt.subplots(r, c)
+        cnt = 0
+
+        for i in range(r):
+            for j in range(c):
+                axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
+                axs[i,j].axis('off')
+                cnt += 1
+
+        fig.savefig("gen_pics/%d.png" % epoch)
+        plt.close()
 
 
 def load_data(path):
@@ -129,15 +142,11 @@ def load_data(path):
 
     return train_x
 
-def image_show(epc, img, size):
-    plt.imshow(img.reshape((size,size)), cmap='gray')
-    plt.savefig(f'gen_pics/{epc}.png')
-
 def main():
 
     x_train = load_data('test train data/mnist')
 
-    gan = GAN(100)
+    gan = GAN()
     gan.train(x_train)
 
 if __name__ == '__main__':
