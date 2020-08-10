@@ -18,15 +18,16 @@ def main():
 
     model = Model(
 
-       Dense(3),
-       Sigmoid(),
+        Dense(3),
+        Sigmoid(),
 
-       Dense(1),
-       Sigmoid(),
+        Dense(1),
+        Sigmoid(),
 
-    )
+    )(Adam(0.1))
 
-    model.fit(x, y, 10000)
+    for eph in range(1000):
+        model.train(x, y)
 
     print(model.predict([[1,0,1]]))
     print(model.predict([[0,0,1]]))

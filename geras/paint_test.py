@@ -40,9 +40,11 @@ class Paint:
         train_Y = np.array(self.y_list)
         train_Y = train_Y.reshape((train_Y.shape[0], 1))
 
-        self.model.fit(train_X,
-                      train_Y,
-                      epochs=1000 + len(self.x_list)*190)
+        epochs = 1000 + len(self.x_list)*190
+        
+        for eph in range(epochs):
+            self.model.train(train_X, train_Y)
+
         self.upload_img()
 
     def button_3(self, event):
@@ -58,25 +60,23 @@ class Paint:
         train_Y = np.array(train_Y)
         train_Y = train_Y.reshape((train_Y.shape[0], 1))
 
-
-        lr = 0.1
-
         self.model = Model(
 
-            Dense(120, lr),
+            Dense(120),
             Sigmoid(),
 
-            Dense(90, lr),
+            Dense(90),
             Sigmoid(),
 
-            Dense(1, lr),
+            Dense(1),
             Sigmoid(),
 
-        )
+        )(Adam(0.01))
 
-        self.model.fit(train_X,
-                      train_Y,
-                      epochs=2000 + len(train_x)*200)
+        epochs = 2000 + len(train_x)*200
+
+        for eph in range(epochs):
+            self.model.train(train_X, train_Y)
 
         self.upload_img()
 
