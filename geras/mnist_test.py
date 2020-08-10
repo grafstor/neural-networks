@@ -6,6 +6,7 @@
 from geras import *
 import pandas as pd
 import matplotlib.pyplot as plt
+import pickle
 
 def vectorize(sequence:list, maxlen:int):
     sequence = np.array(sequence)
@@ -31,6 +32,9 @@ def load_data(main_path):
     train_x = np.array(train_x[border:])
     train_y = np.array(train_y[border:])
 
+    test_x = test_x.reshape(-1,784)
+    train_x = train_x.reshape(-1,784)
+
     train_y = vectorize(train_y, 10)
     test_y = vectorize(test_y, 10)
 
@@ -44,10 +48,13 @@ def main():
 
     model = Model(
 
-        Dense(783),
-        Sigmoid(),
+        Dense(512),
+        LeakyReLU(),
+        Dropout(0.4),
 
-        Dropout(0.5),
+        Dense(256),
+        LeakyReLU(),
+        Dropout(0.4),
 
         Dense(10),
         Softmax(),
@@ -56,7 +63,7 @@ def main():
 
     bc = 256
 
-    for epoch in range(3):
+    for epoch in range(5):
         print('Epoch', epoch, 'training..', end='\r')
 
         for i in range(len(train_x)//bc+1):
@@ -83,6 +90,9 @@ def main():
     plt.xlabel("Numbers")
     plt.ylabel("Probability")
     plt.show()
+
+    with open('mnist_model.pkl', 'wb') as output:
+        pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
